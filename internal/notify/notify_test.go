@@ -493,6 +493,21 @@ func TestFormatNotificationBlocksAndMarkBlocksRead(t *testing.T) {
 		t.Fatalf("expected escaped body quote, got %q", escBody)
 	}
 
+	// Multica mention:// links and standard markdown links render cleanly without raw URIs.
+	mentionItem := item
+	mentionItem.Body = "[@Alice Smith](mention://member/u-1) and [Bob](mention://member/u-2) check [ACME-42](mention://issue/iss-42) with [Polaris](mention://agent/ag-1) and [Engineering](mention://squad/sq-1) — see **[PR #1](https://example.com/pr/1)**"
+	_, mentionBlocks := FormatNotificationBlocks("https://multica.ai", "acme", mentionItem, meta, false)
+	var mentionBody string
+	for _, b := range mentionBlocks {
+		if sb, ok := b.(*slack.SectionBlock); ok && sb.Text != nil && strings.HasPrefix(sb.Text.Text, "> ") {
+			mentionBody = sb.Text.Text
+		}
+	}
+	wantMentionBody := "> @Alice Smith and @Bob check ACME-42 with @Polaris and @Engineering — see PR #1"
+	if mentionBody != wantMentionBody {
+		t.Fatalf("unexpected formatted mention body:\ngot:  %q\nwant: %q", mentionBody, wantMentionBody)
+	}
+
 	// Item without IssueID must omit Reply button; if actions block becomes empty on MarkBlocksRead, drop it.
 	noIssueItem := multica.InboxItem{
 		ID:          "inbox-sys",
