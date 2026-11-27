@@ -234,7 +234,7 @@ func streamConnLoop(ctx context.Context, conn *websocket.Conn, cfg WSConfig, cb 
 		case <-ctx.Done():
 			_ = conn.Close(websocket.StatusNormalClosure, "shutdown")
 			connCancel()
-			<-readErrCh
+			_ = <-readErrCh
 			return ctx.Err()
 		case err := <-readErrCh:
 			connCancel()
@@ -251,7 +251,7 @@ func streamConnLoop(ctx context.Context, conn *websocket.Conn, cfg WSConfig, cb 
 			if err != nil {
 				connCancel()
 				_ = conn.CloseNow()
-				<-readErrCh
+				_ = <-readErrCh
 				return err
 			}
 
@@ -262,7 +262,7 @@ func streamConnLoop(ctx context.Context, conn *websocket.Conn, cfg WSConfig, cb 
 			case <-pongTimer.C:
 				connCancel()
 				_ = conn.CloseNow()
-				<-readErrCh
+				_ = <-readErrCh
 				return errors.New("multica: websocket pong timeout")
 			case err := <-readErrCh:
 				pongTimer.Stop()
@@ -272,7 +272,7 @@ func streamConnLoop(ctx context.Context, conn *websocket.Conn, cfg WSConfig, cb 
 				pongTimer.Stop()
 				_ = conn.Close(websocket.StatusNormalClosure, "shutdown")
 				connCancel()
-				<-readErrCh
+				_ = <-readErrCh
 				return ctx.Err()
 			}
 		}

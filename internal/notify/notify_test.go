@@ -135,14 +135,6 @@ func (m *mockSlackDM) updateCount() int {
 	return len(m.updates)
 }
 
-func (m *mockSlackDM) getUpdates() []updatedDM {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]updatedDM, len(m.updates))
-	copy(out, m.updates)
-	return out
-}
-
 func (m *mockSlackDM) getPosts() []postedDM {
 	m.mu.Lock()
 	defer m.mu.Unlock()
