@@ -1,0 +1,6 @@
+/multica-slack
+*.db
+*.db-wal
+*.db-shm
+.env
+docs/superpowers/plans/

@@ -1,0 +1,48 @@
+display_information:
+  name: Multica
+  description: Rich Multica link unfurling and real-time inbox notifications in Slack
+  background_color: "#111827"
+features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: true
+  bot_user:
+    display_name: Multica
+    always_online: true
+  slash_commands:
+    - command: /multica
+      url: https://<PUBLIC_BASE_URL>/slack/commands
+      description: Connect your Multica account or check notification status
+      usage_hint: "[connect | status]"
+      should_escape: false
+  unfurl_domains:
+    - multica.ai
+oauth_config:
+  redirect_urls:
+    - https://<PUBLIC_BASE_URL>/slack/oauth/callback
+  scopes:
+    bot:
+      - chat:write
+      - commands
+      - im:write
+      - links:read
+      - links:write
+      - users:read
+    user:
+      - links:read
+      - links:write
+settings:
+  event_subscriptions:
+    request_url: https://<PUBLIC_BASE_URL>/slack/events
+    user_events:
+      - link_shared
+    bot_events:
+      - app_home_opened
+      - link_shared
+  interactivity:
+    is_enabled: true
+    request_url: https://<PUBLIC_BASE_URL>/slack/interactions
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

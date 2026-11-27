@@ -1,0 +1,27 @@
+services:
+  multica-slack:
+    build: .
+    # Or pull a released image:
+    # image: ghcr.io/everlightlabs/multica-slack:latest
+    restart: unless-stopped
+    ports:
+      - "3020:3020"
+    volumes:
+      - multica_slack_data:/data
+    environment:
+      PORT: "3020"
+      DATA_DIR: /data
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET}
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET}
+      SLACK_ALLOWED_TEAM_ID: ${SLACK_ALLOWED_TEAM_ID:-}
+      MULTICA_API_URL: ${MULTICA_API_URL:-https://api.multica.ai}
+      MULTICA_APP_URL: ${MULTICA_APP_URL:-https://multica.ai}
+      MULTICA_DEFAULT_WORKSPACE_SLUG: ${MULTICA_DEFAULT_WORKSPACE_SLUG:-}
+      MULTICA_FALLBACK_PAT: ${MULTICA_FALLBACK_PAT:-}
+
+volumes:
+  multica_slack_data:
