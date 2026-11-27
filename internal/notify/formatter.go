@@ -6,11 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/everlightlabs/multica-slack/internal/multica"
 	"github.com/slack-go/slack"
+)
+
+var (
+	reMentionLink   = regexp.MustCompile(`\[([^\]]+)\]\(mention://([^/\s)]+)/[^)\s]+\)`)
+	reMarkdownImage = regexp.MustCompile(`!\[([^\]]*)\]\([^)]+\)`)
+	reMarkdownLink  = regexp.MustCompile(`\[([^\]]+)\]\([^)\s]+\)`)
+	reCodeFence     = regexp.MustCompile("(?m)^```[^\\n]*\\n?")
 )
 
 const (
@@ -386,12 +394,42 @@ func buildHeaderAndFallback(actor, verb, targetURL, identifier, title string) (h
 }
 
 func formatBodyQuote(raw string) string {
-	compact := strings.Join(strings.Fields(raw), " ")
+	cleaned := cleanNotificationMarkdown(raw)
+	compact := strings.Join(strings.Fields(cleaned), " ")
 	if compact == "" {
 		return ""
 	}
 	truncated := truncateRunes(compact, maxBodyQuoteRunes)
 	return "> " + escapeSlackMrkdwn(truncated)
+}
+
+func cleanNotificationMarkdown(raw string) string {
+	s := strings.ReplaceAll(raw, "\r\n", "\n")
+	s = reCodeFence.ReplaceAllString(s, "")
+	s = reMentionLink.ReplaceAllStringFunc(s, func(match string) string {
+		parts := reMentionLink.FindStringSubmatch(match)
+		if len(parts) < 3 {
+			return match
+		}
+		label := strings.TrimSpace(parts[1])
+		kind := strings.ToLower(strings.TrimSpace(parts[2]))
+		if label == "" {
+			return ""
+		}
+		switch kind {
+		case "member", "agent", "squad":
+			if !strings.HasPrefix(label, "@") {
+				return "@" + label
+			}
+			return label
+		default:
+			return label
+		}
+	})
+	s = reMarkdownImage.ReplaceAllString(s, "$1")
+	s = reMarkdownLink.ReplaceAllString(s, "$1")
+	s = strings.NewReplacer("**", "", "__", "").Replace(s)
+	return s
 }
 
 func truncateRunes(s string, maxRunes int) string {
