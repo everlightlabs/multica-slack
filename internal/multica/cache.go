@@ -57,6 +57,13 @@ func NewMetadataCache(client *Client, ttl time.Duration) *MetadataCache {
 	}
 }
 
+// SetLogger configures the logger used for partial metadata fetch warnings.
+func (c *MetadataCache) SetLogger(logger *slog.Logger) {
+	if logger != nil {
+		c.logger = logger
+	}
+}
+
 // ResolveWorkspaceBySlug resolves a workspace slug accessible to pat for slackUserID,
 // caching the user's accessible workspaces for the configured TTL.
 func (c *MetadataCache) ResolveWorkspaceBySlug(ctx context.Context, slackUserID, pat, slug string) (Workspace, error) {

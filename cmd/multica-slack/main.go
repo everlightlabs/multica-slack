@@ -138,6 +138,7 @@ func runWithOptions(ctx context.Context, cfg config.Config, logger *slog.Logger,
 
 	mc := multica.NewClient(cfg.MulticaAPIURL, httpClient)
 	cache := multica.NewMetadataCache(mc, defaultMetadataCacheTTL)
+	cache.SetLogger(logger)
 
 	slackOpts := []slack.Option{slack.OptionHTTPClient(httpClient)}
 	if opts.slackAPIURL != "" {
@@ -182,6 +183,9 @@ func runWithOptions(ctx context.Context, cfg config.Config, logger *slog.Logger,
 		SlackAPIURL: opts.slackAPIURL,
 		HTTPClient:  httpClient,
 		Logger:      logger,
+	})
+	notifyMgr.SetOnStateChange(func(slackUserID string, _ bool) {
+		slackServer.RefreshAppHome(slackUserID)
 	})
 
 	httpServer := &http.Server{
