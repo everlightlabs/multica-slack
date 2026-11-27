@@ -289,6 +289,16 @@ func runPruneLoop(ctx context.Context, st *store.Store, interval time.Duration, 
 			return
 		case <-ticker.C:
 			now := time.Now().UTC()
+			expiredStates, err := st.PruneExpiredOAuthStates(ctx, now)
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				logger.Warn("prune expired oauth states failed", slog.String("error", err.Error()))
+			} else if expiredStates > 0 {
+				logger.Info("pruned expired oauth states", slog.Int64("deleted", expiredStates))
+			}
+
 			cutoff := now.Add(-deliveryRetention)
 			deleted, err := st.PruneDeliveriesOlderThan(ctx, cutoff)
 			if err != nil {
@@ -298,16 +308,6 @@ func runPruneLoop(ctx context.Context, st *store.Store, interval time.Duration, 
 				logger.Warn("prune old delivery records failed", slog.String("error", err.Error()))
 			} else if deleted > 0 {
 				logger.Info("pruned old delivery records", slog.Int64("deleted", deleted))
-			}
-
-			expiredStates, err := st.PruneExpiredOAuthStates(ctx, now)
-			if err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				logger.Warn("prune expired oauth states failed", slog.String("error", err.Error()))
-			} else if expiredStates > 0 {
-				logger.Info("pruned expired oauth states", slog.Int64("deleted", expiredStates))
 			}
 		}
 	}
