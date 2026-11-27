@@ -642,13 +642,13 @@ func TestConnectSnapshotsUnreadWithoutFlooding(t *testing.T) {
 	if u.SlackDMChannelID != "D_U1" {
 		t.Fatalf("expected cached SlackDMChannelID D_U1, got %q", u.SlackDMChannelID)
 	}
-	rec, err := st.GetUnreadDelivery(ctx, "U1", "live-1")
-	if err != nil {
-		t.Fatalf("GetUnreadDelivery(live-1): %v", err)
-	}
-	if rec.CardBlocksJSON == "" || rec.CardFallback == "" {
-		t.Fatalf("expected CardBlocksJSON and CardFallback stored, got fallback=%q blocks=%q", rec.CardFallback, rec.CardBlocksJSON)
-	}
+	waitForCondition(t, 2*time.Second, "card blocks and fallback persisted", func() bool {
+		r, err := st.GetUnreadDelivery(ctx, "U1", "live-1")
+		if err != nil {
+			return false
+		}
+		return r.CardBlocksJSON != "" && r.CardFallback != ""
+	})
 }
 
 func TestPauseResumeAndMutedGroupNoBackfill(t *testing.T) {
