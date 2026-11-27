@@ -31,6 +31,16 @@ Design specification lives in [docs/superpowers/specs/2026-11-26-multica-slack-d
 7. **Error-checked closes:** Always check or explicitly discard (`defer func() { _ = ... }()`) `Close()` / `CloseNow()` returns so `golangci-lint` (`errcheck`) stays green.
 8. **Public repository hygiene:** Never commit deployment-specific hosts, credentials, vault paths, or private workspace names to this repository. Keep deployment wiring in your infrastructure repository.
 
+## Multica Cloud API Wire Quirks
+
+Maintain compatibility with these live Multica Cloud payload shapes (covered by unit tests in `internal/multica/client_test.go` and `internal/notify/notify_test.go`):
+
+- **`GET /api/inbox`:** `issue_due_date` may be a date-only string (`"YYYY-MM-DD"`) or `null`, not RFC3339 — keep it typed as `string`.
+- **`GET /api/projects` & `Project`:** List responses return `{"projects": [...]}` (not a bare array), and project objects use `"title"` rather than `"name"`. Decode both wrapped/bare arrays and populate `Project.Name` from `"name"` or `"title"`.
+- **`GET /api/projects/{id}/progress`:** Returns nested `{"progress": {"scope", "completed", "started", "cancelled"}}`. Keep `ProjectProgress.UnmarshalJSON` compatible with both nested and flat shapes.
+- **`GET /api/issue-statuses`:** List responses return `{"statuses": [...]}` (not a bare array). Decode both wrapped and bare arrays.
+- **Inbox body mentions:** Multica encodes mentions in comment bodies as `[label](mention://member|agent|squad|issue/<uuid>)`. Normalize these before truncating/escaping Slack mrkdwn so raw `mention://` URIs never leak into DM quotes.
+
 ## Development & Verification
 
 Run all checks before committing or opening a PR:

@@ -44,6 +44,12 @@ openssl rand -base64 32
 
 ## Running with Docker Compose
 
+Pre-built multi-arch images (`linux/amd64`, `linux/arm64`) are published to GHCR on every release tag:
+
+```text
+ghcr.io/everlightlabs/multica-slack:<version>
+```
+
 Export the required environment variables (or place them in an untracked `.env` file), then start the service:
 
 ```bash
@@ -54,6 +60,8 @@ Health & readiness endpoints:
 
 - `GET /healthz` — liveness check (`200 OK`)
 - `GET /readyz` — SQLite readiness check and aggregate counts (`linked_users`, `ws_connected`, `ws_auth_failed`)
+
+After connecting your PAT in the Slack App Home tab, confirm the status line reads `WS: connected` (it updates automatically once the Multica WebSocket authenticates) and `/readyz` reports `ws_connected >= 1`.
 
 ## Deployment Notes
 
