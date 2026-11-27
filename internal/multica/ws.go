@@ -207,8 +207,10 @@ func streamConnLoop(ctx context.Context, conn *websocket.Conn, cfg WSConfig, cb 
 
 	pongCh := make(chan struct{}, 1)
 	readErrCh := make(chan error, 1)
+	readDone := make(chan struct{})
 
 	go func() {
+		defer close(readDone)
 		for {
 			var env WSEnvelope
 			if err := wsjson.Read(connCtx, conn, &env); err != nil {
@@ -234,10 +236,11 @@ func streamConnLoop(ctx context.Context, conn *websocket.Conn, cfg WSConfig, cb 
 		case <-ctx.Done():
 			_ = conn.Close(websocket.StatusNormalClosure, "shutdown")
 			connCancel()
-			_ = <-readErrCh
+			<-readDone
 			return ctx.Err()
 		case err := <-readErrCh:
 			connCancel()
+			<-readDone
 			return err
 		case <-ticker.C:
 			select {
@@ -251,7 +254,7 @@ func streamConnLoop(ctx context.Context, conn *websocket.Conn, cfg WSConfig, cb 
 			if err != nil {
 				connCancel()
 				_ = conn.CloseNow()
-				_ = <-readErrCh
+				<-readDone
 				return err
 			}
 
@@ -262,17 +265,18 @@ func streamConnLoop(ctx context.Context, conn *websocket.Conn, cfg WSConfig, cb 
 			case <-pongTimer.C:
 				connCancel()
 				_ = conn.CloseNow()
-				_ = <-readErrCh
+				<-readDone
 				return errors.New("multica: websocket pong timeout")
 			case err := <-readErrCh:
 				pongTimer.Stop()
 				connCancel()
+				<-readDone
 				return err
 			case <-ctx.Done():
 				pongTimer.Stop()
 				_ = conn.Close(websocket.StatusNormalClosure, "shutdown")
 				connCancel()
-				_ = <-readErrCh
+				<-readDone
 				return ctx.Err()
 			}
 		}
