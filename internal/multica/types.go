@@ -102,6 +102,23 @@ type Project struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// UnmarshalJSON supports both "name" and Multica Cloud's "title" field.
+func (p *Project) UnmarshalJSON(data []byte) error {
+	type projectAlias Project
+	var raw struct {
+		projectAlias
+		Title string `json:"title"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*p = Project(raw.projectAlias)
+	if p.Name == "" && raw.Title != "" {
+		p.Name = raw.Title
+	}
+	return nil
+}
+
 // ProjectProgress represents aggregate completion metrics for a project.
 type ProjectProgress struct {
 	ProjectID  string `json:"project_id"`
@@ -111,7 +128,8 @@ type ProjectProgress struct {
 	Cancelled  int    `json:"cancelled"`
 }
 
-// UnmarshalJSON supports both total/completed and total_issues/completed_issues field names.
+// UnmarshalJSON supports flat total/completed/total_issues/completed_issues fields as well as
+// Multica Cloud's nested {"progress":{"scope","completed","started","cancelled"}} response.
 func (p *ProjectProgress) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		ProjectID       string `json:"project_id"`
@@ -119,15 +137,31 @@ func (p *ProjectProgress) UnmarshalJSON(data []byte) error {
 		TotalIssues     *int   `json:"total_issues"`
 		Completed       *int   `json:"completed"`
 		CompletedIssues *int   `json:"completed_issues"`
-		InProgress      int    `json:"in_progress"`
-		Cancelled       int    `json:"cancelled"`
+		InProgress      *int   `json:"in_progress"`
+		Cancelled       *int   `json:"cancelled"`
+		Progress        *struct {
+			Scope     int `json:"scope"`
+			Completed int `json:"completed"`
+			Started   int `json:"started"`
+			Cancelled int `json:"cancelled"`
+		} `json:"progress"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 	p.ProjectID = raw.ProjectID
-	p.InProgress = raw.InProgress
-	p.Cancelled = raw.Cancelled
+	if raw.Progress != nil {
+		p.Total = raw.Progress.Scope
+		p.Completed = raw.Progress.Completed
+		p.InProgress = raw.Progress.Started
+		p.Cancelled = raw.Progress.Cancelled
+	}
+	if raw.InProgress != nil {
+		p.InProgress = *raw.InProgress
+	}
+	if raw.Cancelled != nil {
+		p.Cancelled = *raw.Cancelled
+	}
 	if raw.Total != nil {
 		p.Total = *raw.Total
 	} else if raw.TotalIssues != nil {
@@ -205,7 +239,7 @@ type InboxItem struct {
 	IssueProjectID    string          `json:"issue_project_id"`
 	IssueAssigneeType string          `json:"issue_assignee_type"`
 	IssueAssigneeID   string          `json:"issue_assignee_id"`
-	IssueDueDate      *time.Time      `json:"issue_due_date"`
+	IssueDueDate      string          `json:"issue_due_date"`
 	IssueLabelIDs     []string        `json:"issue_label_ids"`
 	ActorType         string          `json:"actor_type"`
 	ActorID           string          `json:"actor_id"`

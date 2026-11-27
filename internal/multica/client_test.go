@@ -359,3 +359,134 @@ func TestEndpointsAndErrorRedaction(t *testing.T) {
 		t.Fatalf("expected ErrUnauthorized on 403, got %v", err)
 	}
 }
+
+func TestMulticaCloudWrappedShapesAndDateOnlyDueDate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/inbox":
+			_, _ = w.Write([]byte(`[
+				{
+					"id": "inb-date",
+					"workspace_id": "ws-1",
+					"recipient_id": "u-1",
+					"type": "mentioned",
+					"title": "Mentioned you",
+					"body": "Check due date",
+					"read": false,
+					"archived": false,
+					"created_at": "2026-11-27T02:03:20Z",
+					"issue_id": "iss-1",
+					"issue_identifier": "ACME-12",
+					"issue_due_date": "2026-10-08"
+				},
+				{
+					"id": "inb-null",
+					"workspace_id": "ws-1",
+					"recipient_id": "u-1",
+					"type": "assigned",
+					"title": "Assigned to you",
+					"read": false,
+					"archived": false,
+					"created_at": "2026-11-27T02:05:00Z",
+					"issue_due_date": null
+				}
+			]`))
+		case "/api/projects":
+			_, _ = w.Write([]byte(`{
+				"has_more": false,
+				"total": 1,
+				"projects": [
+					{
+						"id": "proj-1",
+						"title": "Operations",
+						"description": "Infra & Ops",
+						"status": "in_progress",
+						"icon": "O",
+						"updated_at": "2026-10-08T23:31:16Z"
+					}
+				]
+			}`))
+		case "/api/projects/proj-1":
+			_, _ = w.Write([]byte(`{
+				"id": "proj-1",
+				"title": "Operations",
+				"description": "Infra & Ops",
+				"status": "in_progress",
+				"updated_at": "2026-10-08T23:31:16Z"
+			}`))
+		case "/api/projects/proj-1/progress":
+			_, _ = w.Write([]byte(`{
+				"progress": {
+					"unit": "issues",
+					"scope": 40,
+					"completed": 30,
+					"started": 6,
+					"unstarted": 3,
+					"cancelled": 1,
+					"percent": 75
+				}
+			}`))
+		case "/api/issue-statuses":
+			_, _ = w.Write([]byte(`{
+				"categories": ["backlog", "started", "done"],
+				"total": 1,
+				"statuses": [
+					{
+						"id": "st-1",
+						"key": "in_review",
+						"name": "In Review",
+						"category": "started",
+						"color": "#F59E0B",
+						"position": 4
+					}
+				]
+			}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, srv.Client())
+	ctx := context.Background()
+
+	items, err := client.ListInbox(ctx, "mul_test", "ws-1")
+	if err != nil {
+		t.Fatalf("ListInbox failed: %v", err)
+	}
+	if len(items) != 2 || items[0].IssueDueDate != "2026-10-08" || items[1].IssueDueDate != "" {
+		t.Fatalf("unexpected inbox items: %+v", items)
+	}
+
+	projects, err := client.ListProjects(ctx, "mul_test", "ws-1")
+	if err != nil {
+		t.Fatalf("ListProjects failed: %v", err)
+	}
+	if len(projects) != 1 || projects[0].ID != "proj-1" || projects[0].Name != "Operations" {
+		t.Fatalf("unexpected projects: %+v", projects)
+	}
+
+	proj, err := client.GetProject(ctx, "mul_test", "ws-1", "proj-1")
+	if err != nil {
+		t.Fatalf("GetProject failed: %v", err)
+	}
+	if proj.Name != "Operations" {
+		t.Fatalf("expected Project.Name from title, got %+v", proj)
+	}
+
+	prog, err := client.GetProjectProgress(ctx, "mul_test", "ws-1", "proj-1")
+	if err != nil {
+		t.Fatalf("GetProjectProgress failed: %v", err)
+	}
+	if prog.Total != 40 || prog.Completed != 30 || prog.InProgress != 6 || prog.Cancelled != 1 {
+		t.Fatalf("unexpected nested progress: %+v", prog)
+	}
+
+	statuses, err := client.ListIssueStatuses(ctx, "mul_test", "ws-1")
+	if err != nil {
+		t.Fatalf("ListIssueStatuses failed: %v", err)
+	}
+	if len(statuses) != 1 || statuses[0].Key != "in_review" || statuses[0].Name != "In Review" {
+		t.Fatalf("unexpected statuses: %+v", statuses)
+	}
+}

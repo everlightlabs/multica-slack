@@ -134,9 +134,15 @@ func (c *Client) GetDoc(ctx context.Context, pat, workspaceID, docID string) (Do
 
 // ListInbox fetches active inbox items for the user in workspaceID.
 func (c *Client) ListInbox(ctx context.Context, pat, workspaceID string) ([]InboxItem, error) {
-	var out []InboxItem
-	err := c.doJSON(ctx, http.MethodGet, "/api/inbox", pat, workspaceID, nil, &out)
-	return out, err
+	raw, err := c.doRaw(ctx, http.MethodGet, "/api/inbox", pat, workspaceID, nil)
+	if err != nil {
+		return nil, err
+	}
+	items, err := decodeListOrWrapped[InboxItem](raw, "items")
+	if err != nil {
+		return nil, fmt.Errorf("multica: decode GET /api/inbox: %w", err)
+	}
+	return items, nil
 }
 
 // MarkInboxRead marks an inbox item as read.
@@ -175,16 +181,56 @@ func (c *Client) ListSquads(ctx context.Context, pat, workspaceID string) ([]Squ
 
 // ListProjects lists projects in the workspace.
 func (c *Client) ListProjects(ctx context.Context, pat, workspaceID string) ([]Project, error) {
-	var out []Project
-	err := c.doJSON(ctx, http.MethodGet, "/api/projects", pat, workspaceID, nil, &out)
-	return out, err
+	raw, err := c.doRaw(ctx, http.MethodGet, "/api/projects", pat, workspaceID, nil)
+	if err != nil {
+		return nil, err
+	}
+	projects, err := decodeListOrWrapped[Project](raw, "projects")
+	if err != nil {
+		return nil, fmt.Errorf("multica: decode GET /api/projects: %w", err)
+	}
+	return projects, nil
 }
 
 // ListIssueStatuses lists configured issue statuses in the workspace.
 func (c *Client) ListIssueStatuses(ctx context.Context, pat, workspaceID string) ([]IssueStatus, error) {
-	var out []IssueStatus
-	err := c.doJSON(ctx, http.MethodGet, "/api/issue-statuses", pat, workspaceID, nil, &out)
-	return out, err
+	raw, err := c.doRaw(ctx, http.MethodGet, "/api/issue-statuses", pat, workspaceID, nil)
+	if err != nil {
+		return nil, err
+	}
+	statuses, err := decodeListOrWrapped[IssueStatus](raw, "statuses", "issue_statuses")
+	if err != nil {
+		return nil, fmt.Errorf("multica: decode GET /api/issue-statuses: %w", err)
+	}
+	return statuses, nil
+}
+
+func decodeListOrWrapped[T any](raw []byte, keys ...string) ([]T, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil, nil
+	}
+	if trimmed[0] == '[' {
+		var list []T
+		if err := json.Unmarshal(trimmed, &list); err != nil {
+			return nil, err
+		}
+		return list, nil
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &obj); err != nil {
+		return nil, err
+	}
+	for _, key := range keys {
+		if field, ok := obj[key]; ok {
+			var list []T
+			if err := json.Unmarshal(field, &list); err != nil {
+				return nil, err
+			}
+			return list, nil
+		}
+	}
+	return nil, fmt.Errorf("expected array or object containing one of %v", keys)
 }
 
 func (c *Client) doJSON(ctx context.Context, method, pathWithQuery, pat, workspaceID string, reqBody any, out any) error {

@@ -63,12 +63,13 @@ type Manager struct {
 	logger           *slog.Logger
 	now              func() time.Time
 
-	mu         sync.Mutex
-	stopped    bool
-	baseCtx    context.Context
-	baseCancel context.CancelFunc
-	streams    map[string]*userStream
-	wg         sync.WaitGroup
+	mu            sync.Mutex
+	stopped       bool
+	baseCtx       context.Context
+	baseCancel    context.CancelFunc
+	streams       map[string]*userStream
+	onStateChange func(slackUserID string, connected bool)
+	wg            sync.WaitGroup
 
 	authMu sync.Mutex
 }
@@ -95,6 +96,14 @@ func NewManager(cfg ManagerConfig, st *store.Store, mc *multica.Client, cache *m
 		now:              time.Now,
 		streams:          make(map[string]*userStream),
 	}
+}
+
+// SetOnStateChange registers an optional callback invoked whenever a user's
+// WebSocket connection transitions between connected and disconnected.
+func (m *Manager) SetOnStateChange(fn func(slackUserID string, connected bool)) {
+	m.mu.Lock()
+	m.onStateChange = fn
+	m.mu.Unlock()
 }
 
 // Start launches WebSocket notification streams for all active users.
@@ -324,11 +333,18 @@ func (m *Manager) startUserStream(user store.User) {
 
 		multica.RunUserStream(streamCtx, wsCfg, multica.WSCallbacks{
 			OnStateChange: func(connected bool) {
+				var cb func(string, bool)
+				changed := false
 				m.mu.Lock()
-				if m.streams[slackUserID] == us {
+				if m.streams[slackUserID] == us && us.connected != connected {
 					us.connected = connected
+					changed = true
+					cb = m.onStateChange
 				}
 				m.mu.Unlock()
+				if changed && cb != nil {
+					cb(slackUserID, connected)
+				}
 			},
 			OnConnected: func(ctx context.Context) {
 				m.handleConnected(ctx, slackUserID, streamCancel)

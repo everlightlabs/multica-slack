@@ -48,6 +48,21 @@ const (
 	ActionIDReplyInput = "reply_input"
 )
 
+// RefreshAppHome asynchronously republishes the user's App Home tab.
+func (s *Server) RefreshAppHome(slackUserID string) {
+	if strings.TrimSpace(slackUserID) == "" {
+		return
+	}
+	s.runAsync("ws_state_home_refresh", func(asyncCtx context.Context) {
+		if err := s.publishAppHome(asyncCtx, slackUserID); err != nil {
+			s.logger.Warn("refresh app home on ws state change failed",
+				slog.String("slack_user_id", slackUserID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
+}
+
 func (s *Server) publishAppHome(ctx context.Context, slackUserID string) error {
 	if s.slack == nil || strings.TrimSpace(slackUserID) == "" {
 		return nil
